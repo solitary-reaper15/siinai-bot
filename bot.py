@@ -3,6 +3,23 @@ import ssl
 from dotenv import load_dotenv
 import certifi
 
+# Keep-alive for web services (ADD THIS AT THE TOP)
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
 # Fix SSL certificate issues (macOS specific)
 os.environ["SSL_CERT_FILE"] = certifi.where()
 ssl._create_default_https_context = ssl.create_default_context
@@ -50,10 +67,38 @@ RESEARCHER_TYPES = {
 # In-memory tracking of users' progress
 user_progress = {}
 
+# Add error handling (ADD THIS NEW CODE)
+@bot.event
+async def on_error(event, *args, **kwargs):
+    print(f"❌ Error in {event}: {args} {kwargs}")
+
+@bot.event
+async def on_command_error(ctx, error):
+    print(f"❌ Command error: {error}")
+    if isinstance(error, commands.CommandNotFound):
+        return
+    await ctx.send(f"An error occurred: {str(error)}")
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
     print(f"✅ Bot is in {len(bot.guilds)} guild(s)")
+    
+    # Verify bot has necessary permissions (ADD THIS NEW CODE)
+    for guild in bot.guilds:
+        print(f"Checking permissions in: {guild.name}")
+        bot_member = guild.get_member(bot.user.id)
+        if bot_member:
+            permissions = bot_member.guild_permissions
+            print(f"Manage Roles: {permissions.manage_roles}")
+            print(f"Send Messages: {permissions.send_messages}")
+            print(f"Read Messages: {permissions.read_messages}")
+
+# Add test command (ADD THIS NEW CODE)
+@bot.command()
+async def test(ctx):
+    """Test if bot is working"""
+    await ctx.send("✅ Bot is working! Interaction test successful.")
 
 # Step 1: Verification reaction
 @bot.event
@@ -141,72 +186,105 @@ async def complete_verification(member):
     except discord.Forbidden:
         pass
 
-# Button Views
+# UPDATED Button Views with error handling
 class DomainSelectionView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)  # 5 minute timeout
 
     @discord.ui.button(label="Social Science, Humanities, Arts", style=discord.ButtonStyle.primary)
     async def social_science_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_domain_selection(interaction, "Social Science, Humanities, Arts")
+        try:
+            await self.handle_domain_selection(interaction, "Social Science, Humanities, Arts")
+        except Exception as e:
+            print(f"Domain selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     @discord.ui.button(label="Management", style=discord.ButtonStyle.primary)
     async def management_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_domain_selection(interaction, "Management")
+        try:
+            await self.handle_domain_selection(interaction, "Management")
+        except Exception as e:
+            print(f"Domain selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     @discord.ui.button(label="CS/Math", style=discord.ButtonStyle.primary)
     async def cs_math_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_domain_selection(interaction, "CS/Math")
+        try:
+            await self.handle_domain_selection(interaction, "CS/Math")
+        except Exception as e:
+            print(f"Domain selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     @discord.ui.button(label="Natural + Physical Sciences", style=discord.ButtonStyle.primary)
     async def natural_sciences_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_domain_selection(interaction, "Natural + Physical Sciences")
+        try:
+            await self.handle_domain_selection(interaction, "Natural + Physical Sciences")
+        except Exception as e:
+            print(f"Domain selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     async def handle_domain_selection(self, interaction: discord.Interaction, domain: str):
-        # Defer the response first
-        await interaction.response.defer(ephemeral=True)
-        
-        member = interaction.user
-        
-        # Get guild from bot
-        guild = bot.get_guild(GUILD_ID)
-        if not guild:
-            await interaction.followup.send("Error: Cannot find server.", ephemeral=True)
-            return
+        try:
+            # Defer the response first
+            await interaction.response.defer(ephemeral=True)
+            
+            member = interaction.user
+            
+            # Get guild from bot
+            guild = bot.get_guild(GUILD_ID)
+            if not guild:
+                await interaction.followup.send("Error: Cannot find server.", ephemeral=True)
+                return
 
-        # Get the member object from the guild
-        guild_member = guild.get_member(member.id)
-        if not guild_member:
-            await interaction.followup.send("Error: You are not in the server.", ephemeral=True)
-            return
+            # Get the member object from the guild
+            guild_member = guild.get_member(member.id)
+            if not guild_member:
+                await interaction.followup.send("Error: You are not in the server.", ephemeral=True)
+                return
 
-        # PREVENT CHANGES: Check if user already has any domain role
-        user_domain_roles = [role for role in guild_member.roles if role.id in DOMAINS.values()]
-        if user_domain_roles:
-            await interaction.followup.send("❌ You already have a domain role! To change it, **please ping an exec**.", ephemeral=True)
-            return
+            # PREVENT CHANGES: Check if user already has any domain role
+            user_domain_roles = [role for role in guild_member.roles if role.id in DOMAINS.values()]
+            if user_domain_roles:
+                await interaction.followup.send("❌ You already have a domain role! To change it, **please ping an exec**.", ephemeral=True)
+                return
 
-        # Get domain role
-        domain_role_id = DOMAINS.get(domain)
-        if not domain_role_id:
-            await interaction.followup.send("Error: Domain role not found.", ephemeral=True)
-            return
+            # Get domain role
+            domain_role_id = DOMAINS.get(domain)
+            if not domain_role_id:
+                await interaction.followup.send("Error: Domain role not found.", ephemeral=True)
+                return
 
-        domain_role = guild.get_role(domain_role_id)
-        if not domain_role:
-            await interaction.followup.send("Error: Domain role not found in server.", ephemeral=True)
-            return
+            domain_role = guild.get_role(domain_role_id)
+            if not domain_role:
+                await interaction.followup.send("Error: Domain role not found in server.", ephemeral=True)
+                return
 
-        # Add domain role and update progress
-        if domain_role not in guild_member.roles:
-            await guild_member.add_roles(domain_role)
+            # Add domain role and update progress
+            if domain_role not in guild_member.roles:
+                await guild_member.add_roles(domain_role)
 
-        if guild_member.id in user_progress:
-            user_progress[guild_member.id]["step"] = 2
-            user_progress[guild_member.id]["domain"] = domain
+            if guild_member.id in user_progress:
+                user_progress[guild_member.id]["step"] = 2
+                user_progress[guild_member.id]["domain"] = domain
 
-        await interaction.followup.send(f"✅ **{domain}** domain selected! Now choose your researcher type.", ephemeral=True)
-        await send_researcher_selection(guild_member)
+            await interaction.followup.send(f"✅ **{domain}** domain selected! Now choose your researcher type.", ephemeral=True)
+            await send_researcher_selection(guild_member)
+            
+        except Exception as e:
+            print(f"Error in domain selection: {e}")
+            await interaction.followup.send("❌ Failed to assign domain role. Please contact an admin.", ephemeral=True)
 
 class ResearcherSelectionView(discord.ui.View):
     def __init__(self):
@@ -214,61 +292,87 @@ class ResearcherSelectionView(discord.ui.View):
 
     @discord.ui.button(label="Dedicated", style=discord.ButtonStyle.success)
     async def dedicated_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_researcher_selection(interaction, "Dedicated")
+        try:
+            await self.handle_researcher_selection(interaction, "Dedicated")
+        except Exception as e:
+            print(f"Researcher selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     @discord.ui.button(label="Intermediate", style=discord.ButtonStyle.success)
     async def intermediate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_researcher_selection(interaction, "Intermediate")
+        try:
+            await self.handle_researcher_selection(interaction, "Intermediate")
+        except Exception as e:
+            print(f"Researcher selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     @discord.ui.button(label="Casual", style=discord.ButtonStyle.success)
     async def casual_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_researcher_selection(interaction, "Casual")
+        try:
+            await self.handle_researcher_selection(interaction, "Casual")
+        except Exception as e:
+            print(f"Researcher selection error: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ An error occurred. Please try again or contact an admin.", ephemeral=True)
 
     async def handle_researcher_selection(self, interaction: discord.Interaction, researcher: str):
-        # Defer the response first
-        await interaction.response.defer(ephemeral=True)
-        
-        member = interaction.user
-        
-        # Get guild from bot
-        guild = bot.get_guild(GUILD_ID)
-        if not guild:
-            await interaction.followup.send("Error: Cannot find server.", ephemeral=True)
-            return
+        try:
+            # Defer the response first
+            await interaction.response.defer(ephemeral=True)
+            
+            member = interaction.user
+            
+            # Get guild from bot
+            guild = bot.get_guild(GUILD_ID)
+            if not guild:
+                await interaction.followup.send("Error: Cannot find server.", ephemeral=True)
+                return
 
-        # Get the member object from the guild
-        guild_member = guild.get_member(member.id)
-        if not guild_member:
-            await interaction.followup.send("Error: You are not in the server.", ephemeral=True)
-            return
+            # Get the member object from the guild
+            guild_member = guild.get_member(member.id)
+            if not guild_member:
+                await interaction.followup.send("Error: You are not in the server.", ephemeral=True)
+                return
 
-        # PREVENT CHANGES: Check if user already has any researcher role
-        user_researcher_roles = [role for role in guild_member.roles if role.id in RESEARCHER_TYPES.values()]
-        if user_researcher_roles:
-            await interaction.followup.send("❌ You already have a researcher type! To change it, **please ping an exec**.", ephemeral=True)
-            return
+            # PREVENT CHANGES: Check if user already has any researcher role
+            user_researcher_roles = [role for role in guild_member.roles if role.id in RESEARCHER_TYPES.values()]
+            if user_researcher_roles:
+                await interaction.followup.send("❌ You already have a researcher type! To change it, **please ping an exec**.", ephemeral=True)
+                return
 
-        # Get researcher role
-        researcher_role_id = RESEARCHER_TYPES.get(researcher)
-        if not researcher_role_id:
-            await interaction.followup.send("Error: Researcher role not found.", ephemeral=True)
-            return
+            # Get researcher role
+            researcher_role_id = RESEARCHER_TYPES.get(researcher)
+            if not researcher_role_id:
+                await interaction.followup.send("Error: Researcher role not found.", ephemeral=True)
+                return
 
-        researcher_role = guild.get_role(researcher_role_id)
-        if not researcher_role:
-            await interaction.followup.send("Error: Researcher role not found in server.", ephemeral=True)
-            return
+            researcher_role = guild.get_role(researcher_role_id)
+            if not researcher_role:
+                await interaction.followup.send("Error: Researcher role not found in server.", ephemeral=True)
+                return
 
-        # Add researcher role and update progress
-        if researcher_role not in guild_member.roles:
-            await guild_member.add_roles(researcher_role)
+            # Add researcher role and update progress
+            if researcher_role not in guild_member.roles:
+                await guild_member.add_roles(researcher_role)
 
-        if guild_member.id in user_progress:
-            user_progress[guild_member.id]["step"] = 3
-            user_progress[guild_member.id]["researcher"] = researcher
+            if guild_member.id in user_progress:
+                user_progress[guild_member.id]["step"] = 3
+                user_progress[guild_member.id]["researcher"] = researcher
 
-        await interaction.followup.send(f"✅ **{researcher}** type selected! Completing your verification...", ephemeral=True)
-        await complete_verification(guild_member)
+            await interaction.followup.send(f"✅ **{researcher}** type selected! Completing your verification...", ephemeral=True)
+            await complete_verification(guild_member)
+            
+        except Exception as e:
+            print(f"Error in researcher selection: {e}")
+            await interaction.followup.send("❌ Failed to assign researcher role. Please contact an admin.", ephemeral=True)
 
 # ========== EXEC COMMANDS FOR MANUAL MANAGEMENT ==========
 
@@ -369,4 +473,5 @@ async def reset_progress(ctx, member: discord.Member):
 
 # This should be at the VERY END of your file
 if __name__ == "__main__":
+    keep_alive()  # ADD THIS LINE
     bot.run(token)
